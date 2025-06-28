@@ -12,7 +12,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: LiangLiang723/tabby-connection-gateway
+  IMAGE_NAME: liangliang723/tabby-connection-gateway
 
 jobs:
   build:
