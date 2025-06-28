@@ -1,5 +1,6 @@
 import asyncio
 import hmac
+import json
 import logging
 from typing import Set
 import websockets
@@ -22,57 +23,67 @@ class GatewayWorker(BaseWorker):
         self.log.info(f'New connection {self}')
 
     async def start(self):
-        await self.send_service_message(
-            {
-                '_': 'hello',
-                'version': 1,
-                'auth_required': not self.server.disable_auth,
-            }
-        )
-        msg = await self.recv_service_message()
-        if msg.get('_') != 'hello':
-            return await self.fatal('expected-hello')
-
-        if not self.server.disable_auth:
-            if not msg.get('auth_token'):
-                return await self.fatal('expected-auth-token')
-
-            valid_tokens = list(self.server.authorized_tokens)
-            if self.server.permanent_auth_token:
-                valid_tokens.append(self.server.permanent_auth_token)
-
-            for token in valid_tokens:
-                if hmac.compare_digest(msg['auth_token'], token):
-                    if token in self.server.authorized_tokens:
-                        self.server.authorized_tokens.remove(token)
-                    break
-            else:
-                return await self.fatal('incorrect-auth-token')
-
-        await self.send_service_message({'_': 'ready'})
-
-        msg = await self.recv_service_message()
-        if msg.get('_') != 'connect':
-            return await self.fatal('expected-connect')
-
-        self.target_host = msg.get('host')
-        self.target_port = msg.get('port')
-
         try:
-            self.reader, self.writer = await asyncio.open_connection(
-                self.target_host, self.target_port
+            await self.send_service_message(
+                {
+                    '_': 'hello',
+                    'version': 1,
+                    'auth_required': not self.server.disable_auth,
+                }
             )
+            msg = await self.recv_service_message()
+            if msg.get('_') != 'hello':
+                return await self.fatal('expected-hello')
+
+            if not self.server.disable_auth:
+                if not msg.get('auth_token'):
+                    return await self.fatal('expected-auth-token')
+
+                valid_tokens = list(self.server.authorized_tokens)
+                if self.server.permanent_auth_token:
+                    valid_tokens.append(self.server.permanent_auth_token)
+
+                for token in valid_tokens:
+                    if hmac.compare_digest(msg['auth_token'], token):
+                        if token in self.server.authorized_tokens:
+                            self.server.authorized_tokens.remove(token)
+                        break
+                else:
+                    return await self.fatal('incorrect-auth-token')
+
+            await self.send_service_message({'_': 'ready'})
+
+            msg = await self.recv_service_message()
+            if msg.get('_') != 'connect':
+                return await self.fatal('expected-connect')
+
+            self.target_host = msg.get('host')
+            self.target_port = msg.get('port')
+
+            try:
+                self.reader, self.writer = await asyncio.open_connection(
+                    self.target_host, self.target_port
+                )
+            except Exception as e:
+                self.log.info(f'Connection failed for {self}: {e}')
+                return await self.fatal('connection-failed', details=str(e))
+
+            self.log.info(f'Connection established for {self}')
+            await self.send_service_message({'_': 'connected'})
+
+            self._socket_reader = asyncio.get_event_loop().create_task(self.socket_reader())
+            self._websocket_reader = asyncio.get_event_loop().create_task(
+                self.websocket_reader()
+            )
+        except (json.JSONDecodeError, TypeError) as e:
+            self.log.error(f'Invalid JSON message from {self}: {e}')
+            return await self.fatal('invalid-message', details='Invalid JSON format')
+        except websockets.exceptions.ConnectionClosed as e:
+            self.log.info(f'Connection closed during handshake for {self}: {e}')
+            return
         except Exception as e:
-            self.log.info(f'Connection failed for {self}: {e}')
-            return await self.fatal('connection-failed', details=str(e))
-
-        self.log.info(f'Connection established for {self}')
-        await self.send_service_message({'_': 'connected'})
-
-        self._socket_reader = asyncio.get_event_loop().create_task(self.socket_reader())
-        self._websocket_reader = asyncio.get_event_loop().create_task(
-            self.websocket_reader()
-        )
+            self.log.error(f'Unexpected error during handshake for {self}: {e}')
+            return await self.fatal('handshake-error', details=str(e))
 
     async def wait(self):
         if self._socket_reader:
@@ -137,6 +148,10 @@ class GatewayServer(BaseServer):
 
     async def handler(self, websocket):
         w = GatewayWorker(self, websocket)
-        await w.start()
-        await w.wait()
-        await w.close()
+        try:
+            await w.start()
+            await w.wait()
+        except Exception as e:
+            w.log.error(f'Handler error for {w}: {e}')
+        finally:
+            await w.close()
