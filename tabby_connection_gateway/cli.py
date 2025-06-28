@@ -54,6 +54,11 @@ async def _main():
         metavar='PATH',
         help='path to the CA certificate for the management server',
     )
+    parser.add_argument(
+        '--debug',
+        action='store_true',
+        help='enable debug logging for troubleshooting connection issues',
+    )
     args = parser.parse_args()
 
     if args.certificate and not args.private_key:
@@ -75,7 +80,10 @@ async def _main():
                 '--admin-ca, --admin-certificate and --admin-private-key are all required when --admin-port is set'
             )
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.DEBUG if args.debug else logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
 
     ssl_context = None
     if args.certificate:

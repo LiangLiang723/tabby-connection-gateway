@@ -20,11 +20,21 @@ class BaseServer:
                 subject = dict(x[0] for x in cert['subject'])
                 self.log.info(' - ' + (','.join('='.join(x) for x in subject.items())))
 
+        async def process_request(path, request_headers):
+            # Log incoming connection attempts
+            self.log.debug(f'WebSocket connection attempt to path: {path}')
+            self.log.debug(f'Request headers: {dict(request_headers)}')
+            # Return None to accept all connections
+            return None
+
         await websockets.serve(
-            lambda w, _: self.handler(w),
+            lambda w, path: self.handler(w),
             self.host,
             self.port,
             ssl=self.ssl,
+            # Add more detailed logging
+            logger=logging.getLogger('websockets.server'),
+            process_request=process_request,
         )
 
 

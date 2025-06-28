@@ -151,7 +151,9 @@ class GatewayServer(BaseServer):
         try:
             await w.start()
             await w.wait()
+        except websockets.exceptions.ConnectionClosedError as e:
+            w.log.info(f'Connection closed unexpectedly for {w}: {e}')
         except Exception as e:
-            w.log.error(f'Handler error for {w}: {e}')
+            w.log.error(f'Handler error for {w}: {e}', exc_info=True)
         finally:
             await w.close()
