@@ -4,7 +4,10 @@ from setuptools import setup
 with open('README.md') as readme_file:
     readme = readme_file.read()
 
-requirements = ['websockets>=9.1']
+requirements = [
+    'websockets>=9.1,<11.0',
+    'importlib-metadata; python_version<"3.8"'
+]
 
 setup(
     name='tabby-connection-gateway',

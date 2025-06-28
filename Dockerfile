@@ -1,4 +1,4 @@
-FROM python:3.7-alpine AS tabby-connection-gateway
+FROM python:3.9-alpine AS tabby-connection-gateway
 
 WORKDIR /app
 COPY setup.cfg setup.py README.md /app
