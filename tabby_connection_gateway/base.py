@@ -82,15 +82,46 @@ class BaseServer:
             self.log.debug(f'WebSocket connection attempt to path: {path}')
             self.log.debug(f'Request headers count: {len(request_headers)}')
             
-            # Log header sizes to debug large headers
+            # Log header sizes to debug large headers - simplified approach
             total_header_size = 0
-            for name, value in request_headers:
-                header_size = len(name) + len(value) + 4  # +4 for ": " and "\r\n"
-                total_header_size += header_size
-                if header_size > 8192:  # Log any unusually large headers
-                    self.log.warning(f'Large header detected: {name} ({header_size} bytes)')
+            large_headers_count = 0
             
-            self.log.debug(f'Total headers size: {total_header_size} bytes')
+            try:
+                # Use a more robust approach to handle headers
+                if hasattr(request_headers, 'items'):
+                    # Headers object with items() method
+                    for name, value in request_headers.items():
+                        header_size = len(str(name)) + len(str(value)) + 4
+                        total_header_size += header_size
+                        if header_size > 8192:
+                            large_headers_count += 1
+                            self.log.warning(f'Large header detected: {name} ({header_size} bytes)')
+                elif hasattr(request_headers, '__iter__'):
+                    # Iterable headers
+                    for item in request_headers:
+                        try:
+                            if hasattr(item, '__len__') and len(item) == 2:
+                                # Tuple-like (name, value)
+                                name, value = item
+                                header_size = len(str(name)) + len(str(value)) + 4
+                            else:
+                                # Single string or other format
+                                header_size = len(str(item)) + 2
+                            
+                            total_header_size += header_size
+                            if header_size > 8192:
+                                large_headers_count += 1
+                                self.log.warning(f'Large header detected ({header_size} bytes)')
+                        except (ValueError, TypeError):
+                            # Skip problematic headers
+                            continue
+                
+                self.log.debug(f'Total headers size: {total_header_size} bytes')
+                if large_headers_count > 0:
+                    self.log.info(f'Found {large_headers_count} large headers (>8KB each)')
+                    
+            except Exception as e:
+                self.log.debug(f'Error processing headers (continuing anyway): {e}')
             
             # Return None to accept all connections
             return None
