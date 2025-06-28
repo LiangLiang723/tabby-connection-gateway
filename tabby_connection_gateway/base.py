@@ -6,11 +6,12 @@ import websockets
 class BaseServer:
     name = ''
 
-    def __init__(self, host, port, ssl=None):
+    def __init__(self, host, port, ssl=None, max_message_size=None):
         self.log = logging.getLogger(self.__class__.__name__)
         self.host = host
         self.port = port
         self.ssl = ssl
+        self.max_message_size = max_message_size or (10 * 1024 * 1024)  # 10MB default
 
     async def start(self):
         self.log.info(f'Listening on {self.host}:{self.port}')
@@ -35,6 +36,9 @@ class BaseServer:
             # Add more detailed logging
             logger=logging.getLogger('websockets.server'),
             process_request=process_request,
+            # Increase limits to handle large messages/headers
+            max_size=self.max_message_size,
+            read_limit=self.max_message_size,
         )
 
 

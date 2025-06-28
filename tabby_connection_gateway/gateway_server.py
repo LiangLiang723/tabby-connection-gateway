@@ -135,8 +135,8 @@ class GatewayWorker(BaseWorker):
 class GatewayServer(BaseServer):
     authorized_tokens: Set[str] = set()
 
-    def __init__(self, *, host, port, ssl=None, auth_token=None, disable_auth=False):
-        super().__init__(host, port, ssl)
+    def __init__(self, *, host, port, ssl=None, auth_token=None, disable_auth=False, max_message_size=None):
+        super().__init__(host, port, ssl, max_message_size=max_message_size)
         self.permanent_auth_token = auth_token
         self.disable_auth = disable_auth
 

@@ -59,6 +59,12 @@ async def _main():
         action='store_true',
         help='enable debug logging for troubleshooting connection issues',
     )
+    parser.add_argument(
+        '--max-message-size',
+        type=int,
+        default=10 * 1024 * 1024,  # 10MB default
+        help='maximum size for WebSocket messages in bytes (default: 10MB)',
+    )
     args = parser.parse_args()
 
     if args.certificate and not args.private_key:
@@ -116,6 +122,7 @@ async def _main():
         ssl=ssl_context,
         auth_token=os.getenv('TABBY_AUTH_TOKEN'),
         disable_auth=args.no_auth,
+        max_message_size=args.max_message_size,
     ).start()
 
     if args.admin_port:
@@ -123,6 +130,7 @@ async def _main():
             host=args.admin_host,
             port=args.admin_port,
             ssl=admin_ssl_context,
+            max_message_size=args.max_message_size,
         ).start()
 
 
